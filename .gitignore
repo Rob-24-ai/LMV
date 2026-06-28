@@ -1,0 +1,14 @@
+# dependencies / build
+app/node_modules/
+app/.next/
+app/out/
+app/next-env.d.ts
+# env / secrets
+.env
+.env.local
+app/.env
+app/.env.local
+# os
+.DS_Store
+# scratch
+*.log
