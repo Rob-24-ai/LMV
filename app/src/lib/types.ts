@@ -103,6 +103,10 @@ export interface Item {
   brand?: string;
   color?: string;
   material?: string;
+  pattern?: string;
+  neckline?: string;
+  sleeveType?: string;
+  closure?: string;
   styleKeywords: string[];
   measurements: Measurements;
   conditionGrade?: ConditionGrade;
@@ -112,10 +116,62 @@ export interface Item {
   // Compose (filled by the AI + operator)
   dating?: DatingResult;
   decadeConfirmed?: string;
+  estimatedValueLow?: number | null;
+  estimatedValueHigh?: number | null;
+  valueNote?: string;
   comps?: string; // pasted sold-comps text (transient-ish, kept for audit)
   price?: PriceResult;
   finalPrice?: number;
   listing?: GeneratedListing;
+}
+
+// Shape returned by the vision "analyze" call.
+export interface AnalyzeResult {
+  brand?: string;
+  garmentType: string;
+  color: string;
+  material?: string;
+  pattern?: string;
+  neckline?: string;
+  sleeveType?: string;
+  closure?: string;
+  styleKeywords: string[];
+  decade: string;
+  decadeConfidence: "low" | "medium" | "high";
+  cues: string[];
+  notableLabels?: string[];
+  estimatedValueLow?: number | null;
+  estimatedValueHigh?: number | null;
+  valueNote?: string;
+}
+
+// Merge a vision analysis into an item without clobbering anything the operator
+// already typed.
+export function applyAnalysis(item: Item, a: AnalyzeResult): Item {
+  const keep = <T>(existing: T | undefined, found: T | undefined) =>
+    existing != null && existing !== "" ? existing : found;
+  return {
+    ...item,
+    brand: keep(item.brand, a.brand),
+    garmentType: keep(item.garmentType, a.garmentType),
+    color: keep(item.color, a.color),
+    material: keep(item.material, a.material),
+    pattern: keep(item.pattern, a.pattern),
+    neckline: keep(item.neckline, a.neckline),
+    sleeveType: keep(item.sleeveType, a.sleeveType),
+    closure: keep(item.closure, a.closure),
+    styleKeywords: item.styleKeywords.length ? item.styleKeywords : a.styleKeywords,
+    decadeConfirmed: item.decadeConfirmed || a.decade,
+    dating: {
+      decade: a.decade,
+      confidence: a.decadeConfidence,
+      cues: a.cues,
+      notableLabels: a.notableLabels ?? [],
+    },
+    estimatedValueLow: a.estimatedValueLow ?? null,
+    estimatedValueHigh: a.estimatedValueHigh ?? null,
+    valueNote: a.valueNote,
+  };
 }
 
 export function newItem(id: string, name: string, now: number): Item {

@@ -1,7 +1,9 @@
 "use client";
 // Thin client for the AI route. Surfaces errors as thrown Errors with the
 // server message so the UI can show "set your API key" etc.
-import type { DatingResult, PriceResult, GeneratedListing } from "./types";
+import type { AnalyzeResult, PriceResult, GeneratedListing, Item } from "./types";
+import { getPhotoBlob } from "./store";
+import { blobToDataUrl } from "./image";
 
 async function call<T>(payload: Record<string, unknown>): Promise<T> {
   const res = await fetch("/api/generate-listing", {
@@ -14,11 +16,21 @@ async function call<T>(payload: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
-export const dateGarment = (images: string[]) =>
-  call<DatingResult>({ action: "date", images });
+// Collect every photo's bytes as data URLs for vision calls.
+export async function collectPhotos(item: Item): Promise<string[]> {
+  const urls: string[] = [];
+  for (const p of item.photos) {
+    const blob = await getPhotoBlob(p.blobKey);
+    if (blob) urls.push(await blobToDataUrl(blob));
+  }
+  return urls;
+}
+
+export const analyzeGarment = (images: string[]) =>
+  call<AnalyzeResult>({ action: "analyze", images });
 
 export const priceItem = (facts: string, comps: string) =>
   call<PriceResult>({ action: "price", facts, comps });
 
-export const writeListing = (facts: string) =>
-  call<GeneratedListing>({ action: "write", facts });
+export const writeListing = (facts: string, images: string[]) =>
+  call<GeneratedListing>({ action: "write", facts, images });

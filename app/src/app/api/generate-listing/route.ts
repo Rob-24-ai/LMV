@@ -1,24 +1,97 @@
 import { NextResponse } from "next/server";
 import type Anthropic from "@anthropic-ai/sdk";
 import { MODELS, structuredCall } from "@/lib/anthropic.server";
+import { maxMode, claudeStructured, writeTempImages } from "@/lib/claude-bridge.server";
 import { datingKnowledge, pricingKnowledge, writingKnowledge } from "@/lib/reference.server";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
-
-// data URL -> Anthropic image block. We pass image BYTES, never a storage URL
-// (a private URL would be unfetchable by the model).
-function imageBlock(dataUrl: string): Anthropic.Messages.ImageBlockParam | null {
-  const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/.exec(dataUrl);
-  if (!m) return null;
-  return {
-    type: "image",
-    source: { type: "base64", media_type: m[1] as "image/jpeg", data: m[2] },
-  };
-}
+export const maxDuration = 300;
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
+
+// --- schemas (shared by both backends) ---
+const ANALYZE_SCHEMA = {
+  type: "object",
+  properties: {
+    brand: { type: "string", description: "Brand from the label, or 'Unbranded' if none visible. Do not guess." },
+    garmentType: { type: "string" },
+    color: { type: "string" },
+    material: { type: "string", description: "From the content tag if visible, else best read of the fabric." },
+    pattern: { type: "string" },
+    neckline: { type: "string" },
+    sleeveType: { type: "string" },
+    closure: { type: "string", description: "zipper type/placement, buttons, etc." },
+    styleKeywords: { type: "array", items: { type: "string" } },
+    decade: { type: "string" },
+    decadeConfidence: { type: "string", enum: ["low", "medium", "high"] },
+    cues: { type: "array", items: { type: "string" }, description: "The dating cues you actually observed." },
+    notableLabels: { type: "array", items: { type: "string" } },
+    estimatedValueLow: { type: ["number", "null"] },
+    estimatedValueHigh: { type: ["number", "null"] },
+    valueNote: { type: "string", description: "One line on what drives value and what to confirm with sold comps." },
+  },
+  required: ["garmentType", "color", "decade", "decadeConfidence", "cues", "styleKeywords"],
+} as const;
+
+const PRICE_SCHEMA = {
+  type: "object",
+  properties: {
+    suggested: { type: ["number", "null"] },
+    low: { type: ["number", "null"] },
+    high: { type: ["number", "null"] },
+    reasoning: { type: "string" },
+  },
+  required: ["suggested", "low", "high", "reasoning"],
+} as const;
+
+const WRITE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    itemSpecifics: { type: "object", additionalProperties: { type: "string" } },
+    description: { type: "string" },
+  },
+  required: ["title", "itemSpecifics", "description"],
+} as const;
+
+const validAnalyze = (v: unknown): v is Record<string, unknown> =>
+  isObj(v) && typeof v.garmentType === "string" && typeof v.decade === "string";
+const validPrice = (v: unknown): v is { suggested: number | null; low: number | null; high: number | null; reasoning: string } =>
+  isObj(v) && typeof v.reasoning === "string";
+const validWrite = (v: unknown): v is { title: string; itemSpecifics: Record<string, string>; description: string } =>
+  isObj(v) && typeof v.title === "string" && typeof v.description === "string" && isObj(v.itemSpecifics);
+
+const ANALYZE_SYS = (kb: string) =>
+  "You are an expert vintage womenswear specialist. Look at every photo and read the garment " +
+  "directly: identify brand (from the label only — never invent one), garment type, color, " +
+  "material, pattern, neckline, sleeve type, closure, and style. Date it using the cue guide, " +
+  "using at least 3 observed cues; if they don't converge, say low confidence. Give a rough " +
+  "resale value range from the brand tier and comparables in your knowledge, and note it's an " +
+  "estimate to confirm against sold comps. Only report what you can actually see — leave a " +
+  "field blank rather than guessing.\n\n" + kb;
+const PRICE_SYS = (kb: string) =>
+  "You price vintage womenswear from SOLD/completed comps only. Ignore active asking prices. " +
+  "Pasted comps are noisy (unsold relists, promoted junk, lots, wrong sizes) — weight clean, " +
+  "comparable, recently-sold items. Apply the condition and rarity adjustments. If comps are " +
+  "too thin, say so and widen the range.\n\n" + kb;
+const WRITE_SYS = (kb: string) =>
+  "You write complete, polished eBay listings for vintage womenswear. Look at the photos and " +
+  "the provided facts and write the whole thing yourself.\n\n" +
+  "RULES:\n" +
+  "- Produce an 80-char Cassini title: brand + era + type + key features + color + size. 1-2 " +
+  "era keywords max, no stuffing, no ALL CAPS.\n" +
+  "- Fill EVERY item specific you can determine from the photos or facts. Read necklines, " +
+  "sleeves, closures, pattern, color, material from the images.\n" +
+  "- NEVER write placeholder text, brackets, or flag markers ('not provided', 'fill from " +
+  "photo', 'confirm from label', '[add ...]', etc.) anywhere in the title, specifics, or " +
+  "description. If you genuinely cannot determine a field, simply omit it. The output must read " +
+  "like a finished, ready-to-post listing a buyer sees — never a worksheet.\n" +
+  "- Description: a natural, well-phrased paragraph or two that sells the piece honestly, plus " +
+  "the measurements (only those provided) and an honest condition line naming any flaws " +
+  "neutrally. Do not fabricate measurements.\n" +
+  "- Only physically verifiable descriptors. eBay item specifics vary by category — include the " +
+  "ones a buyer filters on for this garment type.\n\n" + kb;
 
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
@@ -27,12 +100,10 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
-
-  const action = body.action;
   try {
-    if (action === "date") return await handleDate(body);
-    if (action === "price") return await handlePrice(body);
-    if (action === "write") return await handleWrite(body);
+    if (body.action === "analyze") return await handleAnalyze(body);
+    if (body.action === "price") return await handlePrice(body);
+    if (body.action === "write") return await handleWrite(body);
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
@@ -41,109 +112,140 @@ export async function POST(req: Request) {
   }
 }
 
-async function handleDate(body: Record<string, unknown>) {
+// Run a vision+text structured call through whichever backend is active.
+async function visionStructured<T>(opts: {
+  model: string;
+  system: string;
+  instruction: string;
+  images: string[];
+  schema: object;
+  validate: (v: unknown) => v is T;
+  toolName: string;
+  maxTokens: number;
+}): Promise<T> {
+  if (maxMode()) {
+    const { dir, paths, cleanup } = await writeTempImages(opts.images);
+    try {
+      const prompt =
+        `${opts.instruction}\n\nImage files to read:\n` + paths.map((p) => `- ${p}`).join("\n");
+      return await claudeStructured({
+        model: opts.model,
+        system: opts.system,
+        prompt,
+        schema: opts.schema,
+        validate: opts.validate,
+        imageDir: dir,
+      });
+    } finally {
+      await cleanup();
+    }
+  }
+  const blocks = opts.images
+    .map((d) => {
+      const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/.exec(d);
+      return m
+        ? ({ type: "image", source: { type: "base64", media_type: m[1], data: m[2] } } as Anthropic.Messages.ImageBlockParam)
+        : null;
+    })
+    .filter(Boolean) as Anthropic.Messages.ImageBlockParam[];
+  return structuredCall({
+    model: opts.model,
+    system: opts.system,
+    content: [{ type: "text", text: opts.instruction }, ...blocks],
+    toolName: opts.toolName,
+    toolDescription: "Return the structured result.",
+    schema: opts.schema as unknown as Anthropic.Messages.Tool.InputSchema,
+    validate: opts.validate,
+    maxTokens: opts.maxTokens,
+  });
+}
+
+async function handleAnalyze(body: Record<string, unknown>) {
   const images = Array.isArray(body.images) ? (body.images as string[]) : [];
-  const blocks = images.map(imageBlock).filter(Boolean) as Anthropic.Messages.ImageBlockParam[];
-  if (blocks.length === 0) {
-    return NextResponse.json({ error: "no readable images" }, { status: 400 });
+  if (images.length === 0) return NextResponse.json({ error: "Add at least one photo first." }, { status: 400 });
+  const result = await visionStructured({
+    model: MODELS.dating,
+    system: ANALYZE_SYS(await datingKnowledge()),
+    instruction:
+      "Analyze this vintage garment from the photos. Identify it, date it, and estimate value.",
+    images,
+    schema: ANALYZE_SCHEMA,
+    validate: validAnalyze,
+    toolName: "report_analysis",
+    maxTokens: 1400,
+  });
+  return NextResponse.json(result);
+}
+
+async function handleWrite(body: Record<string, unknown>) {
+  const facts = String(body.facts ?? "");
+  const images = Array.isArray(body.images) ? (body.images as string[]) : [];
+  const instruction = `Write the complete listing. Look at the photos and use these facts:\n${facts}`;
+
+  if (images.length > 0) {
+    const result = await visionStructured({
+      model: MODELS.writing,
+      system: WRITE_SYS(await writingKnowledge()),
+      instruction,
+      images,
+      schema: WRITE_SCHEMA,
+      validate: validWrite,
+      toolName: "report_listing",
+      maxTokens: 2000,
+    });
+    return NextResponse.json(result);
   }
 
+  // No photos: text-only fallback.
+  const kb = await writingKnowledge();
+  if (maxMode()) {
+    const result = await claudeStructured({
+      model: MODELS.writing,
+      system: WRITE_SYS(kb),
+      prompt: instruction,
+      schema: WRITE_SCHEMA,
+      validate: validWrite,
+    });
+    return NextResponse.json(result);
+  }
   const result = await structuredCall({
-    model: MODELS.dating,
-    system:
-      "You are an expert vintage womenswear dater. Use the cue guide to pin a decade. " +
-      "Use at least 3 independent cues before committing. State the cues. If they don't " +
-      "converge, return low confidence.\n\n" +
-      (await datingKnowledge()),
-    content: [
-      { type: "text", text: "Date this garment from the tag/garment photos." },
-      ...blocks,
-    ],
-    toolName: "report_dating",
-    toolDescription: "Report the estimated decade with the cues used.",
-    schema: {
-      type: "object",
-      properties: {
-        decade: { type: "string", description: 'e.g. "1970s" or "circa late 1960s"' },
-        confidence: { type: "string", enum: ["low", "medium", "high"] },
-        cues: { type: "array", items: { type: "string" } },
-        notableLabels: { type: "array", items: { type: "string" } },
-      },
-      required: ["decade", "confidence", "cues", "notableLabels"],
-    },
-    validate: (v): v is { decade: string; confidence: string; cues: string[]; notableLabels: string[] } =>
-      isObj(v) && typeof v.decade === "string" && typeof v.confidence === "string",
-    maxTokens: 1000,
+    model: MODELS.writing,
+    system: WRITE_SYS(kb),
+    content: [{ type: "text", text: instruction }],
+    toolName: "report_listing",
+    toolDescription: "Return the finished listing fields.",
+    schema: WRITE_SCHEMA as unknown as Anthropic.Messages.Tool.InputSchema,
+    validate: validWrite,
+    maxTokens: 2000,
   });
-
   return NextResponse.json(result);
 }
 
 async function handlePrice(body: Record<string, unknown>) {
   const facts = String(body.facts ?? "");
   const comps = String(body.comps ?? "");
+  const kb = await pricingKnowledge();
+  const prompt = `ITEM FACTS:\n${facts}\n\nPASTED SOLD COMPS:\n${comps || "(none provided)"}`;
 
+  if (maxMode()) {
+    const result = await claudeStructured({
+      model: MODELS.writing,
+      system: PRICE_SYS(kb),
+      prompt,
+      schema: PRICE_SCHEMA,
+      validate: validPrice,
+    });
+    return NextResponse.json(result);
+  }
   const result = await structuredCall({
     model: MODELS.writing,
-    system:
-      "You price vintage womenswear from SOLD/completed comps only. Ignore active asking " +
-      "prices. Pasted comps are noisy (unsold relists, promoted junk, lots, wrong sizes) — " +
-      "weight clean, comparable, recently-sold items. Apply the condition and rarity " +
-      "adjustments. If comps are too thin, say so and widen the range.\n\n" +
-      (await pricingKnowledge()),
-    content: [
-      { type: "text", text: `ITEM FACTS:\n${facts}\n\nPASTED SOLD COMPS:\n${comps || "(none provided)"}` },
-    ],
+    system: PRICE_SYS(kb),
+    content: [{ type: "text", text: prompt }],
     toolName: "report_price",
     toolDescription: "Suggest a price grounded in the comps.",
-    schema: {
-      type: "object",
-      properties: {
-        suggested: { type: ["number", "null"] },
-        low: { type: ["number", "null"] },
-        high: { type: ["number", "null"] },
-        reasoning: { type: "string" },
-      },
-      required: ["suggested", "low", "high", "reasoning"],
-    },
-    validate: (v): v is { suggested: number | null; low: number | null; high: number | null; reasoning: string } =>
-      isObj(v) && typeof v.reasoning === "string",
+    schema: PRICE_SCHEMA as unknown as Anthropic.Messages.Tool.InputSchema,
+    validate: validPrice,
     maxTokens: 900,
   });
-
-  return NextResponse.json(result);
-}
-
-async function handleWrite(body: Record<string, unknown>) {
-  const facts = String(body.facts ?? "");
-
-  const result = await structuredCall({
-    model: MODELS.writing,
-    system:
-      "You write eBay listings for vintage womenswear. Produce an 80-char Cassini title " +
-      "(brand + era + type + features + color + size, 1-2 era keywords max, no stuffing, no " +
-      "ALL CAPS), a complete item-specifics set (fill every field you can justify; flag any " +
-      "you can't), and a structured description (measurements block, condition with flaws " +
-      "called out neutrally, features, fit/compare note). Only physically verifiable " +
-      "descriptors. eBay item specifics vary by category — include the ones a buyer filters " +
-      "on for this garment type and note any required field you lack data for.\n\n" +
-      (await writingKnowledge()),
-    content: [{ type: "text", text: `ITEM FACTS:\n${facts}` }],
-    toolName: "report_listing",
-    toolDescription: "Return the finished listing fields.",
-    schema: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "<= 80 chars" },
-        itemSpecifics: { type: "object", additionalProperties: { type: "string" } },
-        description: { type: "string" },
-      },
-      required: ["title", "itemSpecifics", "description"],
-    },
-    validate: (v): v is { title: string; itemSpecifics: Record<string, string>; description: string } =>
-      isObj(v) && typeof v.title === "string" && typeof v.description === "string" && isObj(v.itemSpecifics),
-    maxTokens: 1800,
-  });
-
   return NextResponse.json(result);
 }
