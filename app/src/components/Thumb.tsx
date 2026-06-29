@@ -19,7 +19,7 @@ export function Thumb({ blobKey, className }: { blobKey: string; className?: str
     };
   }, [blobKey]);
 
-  if (!url) return <div className={`bg-neutral-200 ${className ?? ""}`} />;
+  if (!url) return <div className={`bg-cream ${className ?? ""}`} />;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={url} alt="" className={`object-cover ${className ?? ""}`} />;
 }

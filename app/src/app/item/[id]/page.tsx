@@ -25,27 +25,34 @@ export default function ItemPage() {
     saveItem(next);
   }, []);
 
-  if (item === undefined) return <p className="p-6 text-sm text-neutral-400">Loading…</p>;
+  if (item === undefined) return <p className="p-6 text-sm text-ink-soft">Loading…</p>;
   if (item === null)
     return (
       <div className="p-6">
-        <p className="text-sm text-neutral-500">Item not found.</p>
-        <Link href="/" className="text-sm text-blue-600">← Back</Link>
+        <p className="text-sm text-ink-soft">Item not found.</p>
+        <Link href="/" className="text-sm font-semibold text-pumpkin">← Back</Link>
       </div>
     );
 
   return (
-    <main className="mx-auto max-w-6xl p-4 sm:p-6">
+    <main className="mx-auto w-full max-w-6xl p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <Link href="/" className="text-sm text-neutral-500">← Pipeline</Link>
+        <Link
+          href="/"
+          style={{ fontFamily: "var(--font-fun), system-ui, sans-serif" }}
+          className="text-2xl text-pumpkin transition-transform hover:-translate-x-0.5"
+        >
+          ← Pipeline
+        </Link>
         <StatusPicker item={item} onChange={update} />
       </div>
 
       <input
         value={item.name}
         onChange={(e) => update({ ...item, name: e.target.value })}
-        className="mb-4 w-full bg-transparent text-xl font-semibold outline-none"
+        className="mb-1 w-full bg-transparent text-2xl font-bold outline-none placeholder:text-ink-soft"
       />
+      <div className="groovy-rule mb-5 mt-1" />
 
       {/* Mobile tabs */}
       <div className="mb-4 flex gap-2 lg:hidden">
@@ -53,8 +60,8 @@ export default function ItemPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 rounded-lg py-2 text-sm font-medium capitalize ${
-              tab === t ? "bg-neutral-900 text-white" : "border border-neutral-300"
+            className={`flex-1 rounded-full py-2 text-sm font-bold uppercase tracking-wide capitalize transition-colors ${
+              tab === t ? "bg-pumpkin text-paper" : "border-2 border-ink/25 text-ink-soft"
             }`}
           >
             {t}
@@ -71,7 +78,7 @@ export default function ItemPage() {
         </div>
       </div>
 
-      <div className="mt-10 border-t border-neutral-100 pt-4">
+      <div className="mt-10 border-t-2 border-ink/10 pt-4">
         <button
           onClick={async () => {
             if (confirm("Delete this item and its photos?")) {
@@ -79,7 +86,7 @@ export default function ItemPage() {
               window.location.href = "/";
             }
           }}
-          className="text-xs text-red-500"
+          className="text-xs font-semibold text-brick"
         >
           Delete item
         </button>
@@ -110,7 +117,9 @@ function Capture({ item, onChange }: { item: Item; onChange: (n: Item) => void }
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">{title}</h2>
+      <h2 className="mb-3 inline-block rounded-full bg-ink px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-paper">
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -121,7 +130,7 @@ function StatusPicker({ item, onChange }: { item: Item; onChange: (n: Item) => v
     <select
       value={item.status}
       onChange={(e) => onChange({ ...item, status: e.target.value as ItemStatus })}
-      className="rounded-lg border border-neutral-300 px-2 py-1 text-sm"
+      className="rounded-full border-2 border-ink/25 bg-paper px-3 py-1.5 text-sm font-semibold outline-none focus:border-pumpkin"
     >
       {STATUS_ORDER.map((s) => (
         <option key={s} value={s}>

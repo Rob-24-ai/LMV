@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { PHOTO_SLOTS, type PhotoSlot } from "@/lib/config";
 import type { Item, PhotoMeta } from "@/lib/types";
 import { putPhotoBlob, deletePhotoBlob, makeId } from "@/lib/store";
@@ -32,6 +32,7 @@ function SlotRow({
   onChange: (next: Item) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
   const photos = item.photos.filter((p) => p.role === slot.role);
   const filled = photos.length > 0;
 
@@ -66,27 +67,45 @@ function SlotRow({
   }
 
   return (
-    <div className="rounded-xl border border-neutral-200 p-3">
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!dragging) setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        // Ignore leave events bubbling up from children.
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void handleFiles(e.dataTransfer.files);
+      }}
+      className={`rounded-2xl border-2 p-3 transition-colors ${
+        dragging ? "border-pumpkin bg-mustard/15" : "border-ink/80 bg-paper"
+      }`}
+    >
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
             className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
-              filled ? "bg-green-600 text-white" : "bg-neutral-200 text-neutral-500"
+              filled ? "bg-avocado text-paper" : "bg-cream text-ink-soft"
             }`}
           >
             {filled ? "✓" : ""}
           </span>
-          <span className="text-sm font-medium">
+          <span className="text-sm font-semibold">
             {slot.label}
-            {slot.required && <span className="text-red-500"> *</span>}
+            {slot.required && <span className="text-brick"> *</span>}
             {slot.hiRes && (
-              <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-700">hi-res</span>
+              <span className="ml-1 rounded-full bg-mustard/30 px-2 text-[10px] font-semibold text-ink">hi-res</span>
             )}
           </span>
         </div>
         <button
           onClick={() => inputRef.current?.click()}
-          className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-medium"
+          className="rounded-full border-2 border-ink/25 px-3 py-1 text-xs font-bold uppercase tracking-wide transition-colors hover:border-pumpkin hover:text-pumpkin"
         >
           {filled && !slot.multi ? "Retake" : "Add"}
         </button>
@@ -100,13 +119,13 @@ function SlotRow({
           onChange={(e) => handleFiles(e.target.files)}
         />
       </div>
-      <p className="mb-2 text-xs text-neutral-400">{slot.hint}</p>
+      <p className="mb-2 text-xs text-ink-soft">{slot.hint}</p>
       {photos.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {photos.map((p) => (
             <button key={p.id} onClick={() => remove(p)} className="relative" title="Tap to remove">
-              <Thumb blobKey={p.blobKey} className="h-16 w-16 rounded-lg" />
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-neutral-900 text-[10px] text-white">
+              <Thumb blobKey={p.blobKey} className="h-16 w-16 rounded-xl border-2 border-ink/80" />
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brick text-[10px] text-paper">
                 ×
               </span>
             </button>

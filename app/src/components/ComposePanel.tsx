@@ -59,7 +59,7 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
   return (
     <div className="space-y-6">
       {err && (
-        <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-xl border-2 border-brick/40 bg-brick/10 px-3 py-2 text-sm font-medium text-brick">
           {err}
           {err.includes("ANTHROPIC_API_KEY") && " — add it to .env.local and restart."}
         </div>
@@ -68,11 +68,11 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
       <button
         onClick={generate}
         disabled={busy !== null}
-        className="w-full rounded-xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+        className="w-full rounded-full bg-gradient-to-r from-pumpkin to-mustard px-4 py-3.5 text-sm font-bold uppercase tracking-wide text-paper shadow-[3px_3px_0_rgba(59,42,24,0.3)] transition-transform active:translate-y-0.5 disabled:opacity-50"
       >
         {busy === "generate" ? "Looking at the photos, writing…" : "✨ Generate listing from photos"}
       </button>
-      <p className="-mt-3 text-xs text-neutral-400">
+      <p className="-mt-3 text-xs text-ink-soft">
         Reads the garment and tags, dates it, estimates value, and writes the full listing. You
         only need to add measurements (it can&apos;t measure from a photo).
       </p>
@@ -80,7 +80,7 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
       {/* What it found */}
       {(v.dating || v.brand || v.estimatedValueLow != null) && (
         <Section title="What it found">
-          <div className="rounded-lg bg-neutral-50 p-3 text-sm">
+          <div className="rounded-xl border-2 border-ink/15 bg-cream p-3 text-sm">
             {v.brand && <Line k="Brand" val={v.brand} />}
             {v.garmentType && <Line k="Type" val={v.garmentType} />}
             {v.color && <Line k="Color" val={v.color} />}
@@ -96,17 +96,17 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
                   val={`${v.dating.decade} (${v.dating.confidence} confidence)`}
                 />
                 {v.dating.cues.length > 0 && (
-                  <ul className="ml-1 mt-1 list-inside list-disc text-xs text-neutral-500">
+                  <ul className="ml-1 mt-1 list-inside list-disc text-xs text-ink-soft">
                     {v.dating.cues.map((c, i) => (
                       <li key={i}>{c}</li>
                     ))}
                   </ul>
                 )}
-                <label className="mt-2 block text-xs font-medium text-neutral-500">
+                <label className="mt-2 block text-xs font-semibold text-ink-soft">
                   Confirm / override era
                 </label>
                 <input
-                  className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
+                  className="mt-1 w-full rounded-xl border-2 border-ink/25 bg-paper px-3 py-1.5 text-sm outline-none focus:border-pumpkin"
                   value={v.decadeConfirmed ?? ""}
                   onChange={(e) => onChange({ ...item, decadeConfirmed: e.target.value })}
                 />
@@ -118,8 +118,8 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
                   k="Est. value"
                   val={`$${v.estimatedValueLow ?? "?"}–$${v.estimatedValueHigh ?? "?"}`}
                 />
-                {v.valueNote && <p className="text-xs text-neutral-500">{v.valueNote}</p>}
-                <p className="mt-1 text-xs text-amber-700">
+                {v.valueNote && <p className="text-xs text-ink-soft">{v.valueNote}</p>}
+                <p className="mt-1 text-xs font-medium text-pumpkin">
                   Estimate only — confirm with sold comps below before pricing.
                 </p>
               </div>
@@ -160,7 +160,7 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
           Open eBay sold comps ↗
         </a>
         <textarea
-          className="mt-2 h-24 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+          className="mt-2 h-24 w-full rounded-xl border-2 border-ink/25 bg-paper p-2 text-sm outline-none transition-colors placeholder:text-ink-soft focus:border-pumpkin"
           placeholder="Paste the sold results here to ground the price…"
           value={item.comps ?? ""}
           onChange={(e) => onChange({ ...item, comps: e.target.value })}
@@ -169,18 +169,18 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
           {busy === "price" ? "Pricing…" : "Suggest price from comps"}
         </button>
         {item.price && (
-          <div className="mt-3 rounded-lg bg-neutral-50 p-3 text-sm">
+          <div className="mt-3 rounded-xl border-2 border-ink/15 bg-cream p-3 text-sm">
             <p>
               Suggested <b>{item.price.suggested != null ? `$${item.price.suggested}` : "—"}</b>
               {item.price.low != null && item.price.high != null && (
-                <span className="text-neutral-500"> (${item.price.low}–${item.price.high})</span>
+                <span className="text-ink-soft"> (${item.price.low}–${item.price.high})</span>
               )}
             </p>
-            <p className="mt-1 text-xs text-neutral-600">{item.price.reasoning}</p>
-            <label className="mt-2 block text-xs font-medium text-neutral-500">Final price</label>
+            <p className="mt-1 text-xs text-ink-soft">{item.price.reasoning}</p>
+            <label className="mt-2 block text-xs font-semibold text-ink-soft">Final price</label>
             <input
               type="number"
-              className="mt-1 w-32 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
+              className="mt-1 w-32 rounded-xl border-2 border-ink/25 bg-paper px-3 py-1.5 text-sm outline-none focus:border-pumpkin"
               value={item.finalPrice ?? ""}
               onChange={(e) =>
                 onChange({ ...item, finalPrice: e.target.value === "" ? undefined : Number(e.target.value) })
@@ -196,7 +196,9 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
+      <h3 className="mb-2 inline-block rounded-full bg-ink px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-paper">
+        {title}
+      </h3>
       {children}
     </div>
   );
@@ -205,7 +207,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Line({ k, val }: { k: string; val: string }) {
   return (
     <p className="text-sm">
-      <span className="text-neutral-400">{k}: </span>
+      <span className="text-ink-soft">{k}: </span>
       {val}
     </p>
   );
@@ -219,11 +221,11 @@ function Copyable({ label, text }: { label: string; text: string }) {
     setTimeout(() => setCopied(false), 1200);
   }
   return (
-    <div className="rounded-lg border border-neutral-200">
-      <div className="flex items-center justify-between border-b border-neutral-100 px-3 py-1.5">
-        <span className="text-xs font-medium text-neutral-500">{label}</span>
-        <button onClick={copy} className="text-xs font-medium text-blue-600">
-          {copied ? "Copied" : "Copy"}
+    <div className="overflow-hidden rounded-xl border-2 border-ink/80 bg-paper">
+      <div className="flex items-center justify-between border-b-2 border-ink/80 bg-cream px-3 py-1.5">
+        <span className="text-xs font-semibold text-ink-soft">{label}</span>
+        <button onClick={copy} className="text-xs font-bold uppercase tracking-wide text-teal">
+          {copied ? "Copied ✓" : "Copy"}
         </button>
       </div>
       <pre className="whitespace-pre-wrap px-3 py-2 text-sm">{text}</pre>
@@ -231,5 +233,7 @@ function Copyable({ label, text }: { label: string; text: string }) {
   );
 }
 
-const btn = "rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50";
-const btnGhost = "inline-block rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium disabled:opacity-50";
+const btn =
+  "rounded-full bg-pumpkin px-5 py-2 text-sm font-bold uppercase tracking-wide text-paper shadow-[2px_2px_0_rgba(59,42,24,0.3)] transition-transform active:translate-y-0.5 disabled:opacity-50";
+const btnGhost =
+  "inline-block rounded-full border-2 border-ink/25 px-5 py-2 text-sm font-bold uppercase tracking-wide transition-colors hover:border-pumpkin hover:text-pumpkin disabled:opacity-50";

@@ -4,7 +4,7 @@ import type { Item, Measurements, Flaw, FlawType, ConditionGrade } from "@/lib/t
 import { makeId } from "@/lib/store";
 
 const inputCls =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900";
+  "w-full rounded-xl border-2 border-ink/25 bg-paper px-3 py-2 text-sm outline-none transition-colors placeholder:text-ink-soft focus:border-pumpkin";
 
 export function DetailsForm({ item, onChange }: { item: Item; onChange: (n: Item) => void }) {
   const set = (patch: Partial<Item>) => onChange({ ...item, ...patch });
@@ -46,9 +46,9 @@ export function MeasurementsForm({ item, onChange }: { item: Item; onChange: (n:
               value={item.measurements[f.key] ?? ""}
               onChange={(e) => set(f.key, e.target.value)}
             />
-            <span className="text-xs text-neutral-400">in</span>
+            <span className="text-xs text-ink-soft">in</span>
           </div>
-          <p className="mt-0.5 text-[11px] text-neutral-400">{f.hint}</p>
+          <p className="mt-0.5 text-[11px] text-ink-soft">{f.hint}</p>
         </div>
       ))}
     </div>
@@ -78,10 +78,10 @@ export function ConditionForm({ item, onChange }: { item: Item; onChange: (n: It
             <button
               key={g.grade}
               onClick={() => toggleGrade(g.grade)}
-              className={`rounded-full px-3 py-1 text-sm ${
+              className={`rounded-full px-3 py-1 text-sm font-semibold transition-colors ${
                 item.conditionGrade === g.grade
-                  ? "bg-neutral-900 text-white"
-                  : "border border-neutral-300 text-neutral-700"
+                  ? "bg-pumpkin text-paper"
+                  : "border-2 border-ink/25 text-ink hover:border-pumpkin"
               }`}
             >
               {g.label}
@@ -96,7 +96,7 @@ export function ConditionForm({ item, onChange }: { item: Item; onChange: (n: It
             <button
               key={f.type}
               onClick={() => addFlaw(f.type)}
-              className="rounded-full border border-neutral-300 px-3 py-1 text-xs text-neutral-700"
+              className="rounded-full border-2 border-ink/25 px-3 py-1 text-xs font-semibold text-ink transition-colors hover:border-pumpkin hover:text-pumpkin"
             >
               + {f.label}
             </button>
@@ -112,7 +112,7 @@ export function ConditionForm({ item, onChange }: { item: Item; onChange: (n: It
                 onChange={(e) => updateFlaw(fl.id, e.target.value)}
                 placeholder="e.g. pea-sized mark, left cuff"
               />
-              <button onClick={() => removeFlaw(fl.id)} className="text-neutral-400">×</button>
+              <button onClick={() => removeFlaw(fl.id)} className="text-brick">×</button>
             </div>
           ))}
         </div>
@@ -141,5 +141,5 @@ function Field({
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <label className="mb-1 block text-xs font-medium text-neutral-500">{children}</label>;
+  return <label className="mb-1 block text-xs font-semibold text-ink-soft">{children}</label>;
 }
