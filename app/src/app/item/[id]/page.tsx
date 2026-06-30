@@ -6,6 +6,7 @@ import { getItem, saveItem, deleteItem } from "@/lib/store";
 import { STATUS_LABELS, STATUS_ORDER, type Item, type ItemStatus } from "@/lib/types";
 import { PhotoChecklist } from "@/components/PhotoChecklist";
 import { DetailsForm, MeasurementsForm, ConditionForm } from "@/components/CaptureForms";
+import { MeasurementDiagram } from "@/components/MeasurementDiagram";
 import { ComposePanel } from "@/components/ComposePanel";
 
 type Tab = "capture" | "compose";
@@ -105,6 +106,7 @@ function Capture({ item, onChange }: { item: Item; onChange: (n: Item) => void }
         <PhotoChecklist item={item} onChange={onChange} />
       </Block>
       <Block title="Measurements">
+        <MeasurementDiagram garmentType={item.garmentType} />
         <MeasurementsForm item={item} onChange={onChange} />
       </Block>
       <Block title="Condition & flaws">

@@ -50,6 +50,8 @@ export interface Measurements {
   sleeve?: number;
   rise?: number;
   inseam?: number;
+  hemOpening?: number; // across the bottom, flat — skirts & dresses
+  legOpening?: number; // one cuff, flat — pants/shorts
 }
 
 export type FlawType =

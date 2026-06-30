@@ -45,6 +45,8 @@ export const MEASURE_FIELDS: MeasureField[] = [
   { key: "sleeve", label: "Sleeve", hint: "Shoulder seam to cuff" },
   { key: "rise", label: "Rise", hint: "Bottoms only" },
   { key: "inseam", label: "Inseam", hint: "Bottoms only" },
+  { key: "hemOpening", label: "Hem opening", hint: "Flat across the bottom — skirts & dresses" },
+  { key: "legOpening", label: "Leg opening", hint: "One cuff, flat — pants & shorts" },
 ];
 
 export const FLAW_TYPES: { type: FlawType; label: string }[] = [
