@@ -55,12 +55,37 @@ const WRITE_SCHEMA = {
   required: ["title", "itemSpecifics", "description"],
 } as const;
 
+const MEASURE_FIELD_KEYS = ["bust", "waist", "hips", "length", "shoulder", "sleeve", "rise", "inseam"] as const;
+const MEASURE_SCHEMA = {
+  type: "object",
+  properties: {
+    reads: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          field: { type: "string", enum: MEASURE_FIELD_KEYS },
+          value: {
+            type: ["number", "null"],
+            description: "Inches to the nearest 0.25, read where the garment edge meets the tape. null if a tape is present but the number/endpoint isn't legible.",
+          },
+          confidence: { type: "string", enum: ["low", "medium", "high"] },
+          note: { type: "string", description: "Short reason when confidence is not high (e.g. 'cuff end out of frame')." },
+        },
+        required: ["field", "value", "confidence"],
+      },
+    },
+  },
+  required: ["reads"],
+} as const;
+
 const validAnalyze = (v: unknown): v is Record<string, unknown> =>
   isObj(v) && typeof v.garmentType === "string" && typeof v.decade === "string";
 const validPrice = (v: unknown): v is { suggested: number | null; low: number | null; high: number | null; reasoning: string } =>
   isObj(v) && typeof v.reasoning === "string";
 const validWrite = (v: unknown): v is { title: string; itemSpecifics: Record<string, string>; description: string } =>
   isObj(v) && typeof v.title === "string" && typeof v.description === "string" && isObj(v.itemSpecifics);
+const validMeasure = (v: unknown): v is { reads: unknown[] } => isObj(v) && Array.isArray(v.reads);
 
 const ANALYZE_SYS = (kb: string) =>
   "You are an expert vintage womenswear specialist. Look at every photo and read the garment " +
@@ -92,6 +117,27 @@ const WRITE_SYS = (kb: string) =>
   "neutrally. Do not fabricate measurements.\n" +
   "- Only physically verifiable descriptors. eBay item specifics vary by category — include the " +
   "ones a buyer filters on for this garment type.\n\n" + kb;
+const MEASURE_SYS =
+  "You read flat garment measurements off a soft tape measure laid on the garment in each photo. " +
+  "For each photo, work out which dimension the tape spans and read the number on the tape at the " +
+  "point where the garment edge ends:\n" +
+  "- bust = pit-to-pit (armpit seam to armpit seam)\n" +
+  "- waist = narrowest point, flat\n" +
+  "- hips = fullest point below the waist, flat\n" +
+  "- length = shoulder seam (or top) straight down to the hem\n" +
+  "- shoulder = seam to seam across the back\n" +
+  "- sleeve = shoulder seam to the end of the cuff\n" +
+  "- rise = crotch seam to top of waistband (bottoms)\n" +
+  "- inseam = crotch seam to leg hem (bottoms)\n\n" +
+  "These are FLAT measurements: report the number shown on the tape as-is. Do NOT double pit-to-pit, " +
+  "waist, or hips. Read to the nearest 0.25 inch.\n\n" +
+  "RULES:\n" +
+  "- Only report a dimension when a tape is clearly laid along it AND you can actually read the end " +
+  "number. Set confidence by how legibly you can read the number and see both endpoints.\n" +
+  "- If a tape is present but the number or an endpoint is unclear, return value null with a short " +
+  "note saying why. NEVER guess a number you cannot read off the tape.\n" +
+  "- Return one entry per dimension you can identify across the photos; omit dimensions with no tape on them.\n" +
+  "- If the tape shows centimeters, convert to inches (1 in = 2.54 cm) and note that you converted.";
 
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
@@ -104,6 +150,7 @@ export async function POST(req: Request) {
     if (body.action === "analyze") return await handleAnalyze(body);
     if (body.action === "price") return await handlePrice(body);
     if (body.action === "write") return await handleWrite(body);
+    if (body.action === "measure") return await handleMeasure(body);
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
@@ -173,6 +220,24 @@ async function handleAnalyze(body: Record<string, unknown>) {
     validate: validAnalyze,
     toolName: "report_analysis",
     maxTokens: 1400,
+  });
+  return NextResponse.json(result);
+}
+
+async function handleMeasure(body: Record<string, unknown>) {
+  const images = Array.isArray(body.images) ? (body.images as string[]) : [];
+  if (images.length === 0)
+    return NextResponse.json({ error: "Add measurement shots first — tape laid along each dimension." }, { status: 400 });
+  const result = await visionStructured({
+    model: MODELS.dating,
+    system: MEASURE_SYS,
+    instruction:
+      "Read the tape-measure value for each dimension shown in these photos. Report only what you can actually read off the tape.",
+    images,
+    schema: MEASURE_SCHEMA,
+    validate: validMeasure,
+    toolName: "report_measurements",
+    maxTokens: 1000,
   });
   return NextResponse.json(result);
 }

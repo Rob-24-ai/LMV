@@ -1,6 +1,8 @@
 "use client";
+import { useState } from "react";
 import { MEASURE_FIELDS, FLAW_TYPES, CONDITION_GRADES } from "@/lib/config";
-import type { Item, Measurements, Flaw, FlawType, ConditionGrade } from "@/lib/types";
+import type { Item, Measurements, MeasureRead, Flaw, FlawType, ConditionGrade } from "@/lib/types";
+import { readMeasurements, collectPhotos } from "@/lib/api";
 import { makeId } from "@/lib/store";
 
 const inputCls =
@@ -28,29 +30,101 @@ export function DetailsForm({ item, onChange }: { item: Item; onChange: (n: Item
 }
 
 export function MeasurementsForm({ item, onChange }: { item: Item; onChange: (n: Item) => void }) {
+  const [reading, setReading] = useState(false);
+  const [readErr, setReadErr] = useState<string | null>(null);
+  const [reads, setReads] = useState<MeasureRead[] | null>(null);
+
   function set(key: keyof Measurements, raw: string) {
     const v = raw === "" ? undefined : Number(raw);
     onChange({ ...item, measurements: { ...item.measurements, [key]: Number.isNaN(v) ? undefined : v } });
   }
+
+  // Read the tape off the measurement shots and pre-fill EMPTY fields only —
+  // never clobber a number you typed. The banner is the confirm step.
+  async function readTape() {
+    setReading(true);
+    setReadErr(null);
+    try {
+      const photos = await collectPhotos(item, ["scale"]);
+      if (photos.length === 0) {
+        setReadErr("Add measurement shots in Photos first — lay the tape along each dimension.");
+        return;
+      }
+      const res = await readMeasurements(photos);
+      const next = { ...item.measurements };
+      for (const r of res.reads) {
+        if (r.value != null && next[r.field] == null) next[r.field] = r.value;
+      }
+      onChange({ ...item, measurements: next });
+      setReads(res.reads);
+    } catch (e) {
+      setReadErr(e instanceof Error ? e.message : "couldn't read the tape");
+    } finally {
+      setReading(false);
+    }
+  }
+
+  const labelFor = (k: keyof Measurements) => MEASURE_FIELDS.find((f) => f.key === k)?.label ?? k;
+
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {MEASURE_FIELDS.map((f) => (
-        <div key={f.key}>
-          <Label>{f.label}{f.doubled ? " (flat)" : ""}</Label>
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.25"
-              className={inputCls}
-              value={item.measurements[f.key] ?? ""}
-              onChange={(e) => set(f.key, e.target.value)}
-            />
-            <span className="text-xs text-ink-soft">in</span>
-          </div>
-          <p className="mt-0.5 text-[11px] text-ink-soft">{f.hint}</p>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          onClick={readTape}
+          disabled={reading}
+          className="rounded-full bg-pumpkin px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-paper shadow-[2px_2px_0_rgba(59,42,24,0.3)] transition-transform active:translate-y-0.5 disabled:opacity-50"
+        >
+          {reading ? "Reading the tape…" : "📏 Read tape from photos"}
+        </button>
+        <span className="text-[11px] text-ink-soft">Pre-fills from your measurement shots — confirm each.</span>
+      </div>
+
+      {readErr && (
+        <div className="rounded-xl border-2 border-brick/40 bg-brick/10 px-3 py-2 text-xs font-medium text-brick">
+          {readErr}
         </div>
-      ))}
+      )}
+
+      {reads && (
+        <div className="rounded-xl border-2 border-ink/15 bg-cream p-3 text-xs">
+          <p className="mb-1 font-semibold text-ink">Read from the tape — verify before listing:</p>
+          {reads.length === 0 ? (
+            <p className="text-ink-soft">No tape readings found in those shots.</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {reads.map((r, i) => {
+                const trusted = r.confidence === "high" && r.value != null;
+                return (
+                  <li key={i} className={trusted ? "text-ink" : "text-brick"}>
+                    <b>{labelFor(r.field)}:</b> {r.value != null ? `${r.value} in` : "couldn't read"}
+                    {!trusted && <span> — check{r.note ? ` (${r.note})` : ""}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        {MEASURE_FIELDS.map((f) => (
+          <div key={f.key}>
+            <Label>{f.label}{f.doubled ? " (flat)" : ""}</Label>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.25"
+                className={inputCls}
+                value={item.measurements[f.key] ?? ""}
+                onChange={(e) => set(f.key, e.target.value)}
+              />
+              <span className="text-xs text-ink-soft">in</span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-ink-soft">{f.hint}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

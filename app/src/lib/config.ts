@@ -19,7 +19,13 @@ export const PHOTO_SLOTS: PhotoSlot[] = [
   { role: "care_tag", label: "Care / union tag", hint: "RN number, care symbols, union label", hiRes: true },
   { role: "fabric", label: "Fabric close-up", hint: "Weave and texture" },
   { role: "flaw", label: "Flaws", hint: "One shot per flaw, close", multi: true },
-  { role: "scale", label: "Scale", hint: "Tape measure in frame" },
+  {
+    role: "scale",
+    label: "Measurement shots",
+    hint: "Lay a tape flat along each dimension — pit-to-pit, waist, length, sleeve. One shot per dimension, fill the frame so the numbers read. Claude can read these into the measurements.",
+    multi: true,
+    hiRes: true,
+  },
   { role: "extra", label: "Extra", hint: "Anything else worth showing", multi: true },
 ];
 

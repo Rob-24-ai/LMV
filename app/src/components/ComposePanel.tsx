@@ -73,8 +73,8 @@ export function ComposePanel({ item, onChange }: { item: Item; onChange: (n: Ite
         {busy === "generate" ? "Looking at the photos, writing…" : "✨ Generate listing from photos"}
       </button>
       <p className="-mt-3 text-xs text-ink-soft">
-        Reads the garment and tags, dates it, estimates value, and writes the full listing. You
-        only need to add measurements (it can&apos;t measure from a photo).
+        Reads the garment and tags, dates it, estimates value, and writes the full listing. Add
+        measurements in the Capture tab — type them, or shoot the tape and tap “Read tape”.
       </p>
 
       {/* What it found */}

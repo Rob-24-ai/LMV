@@ -91,6 +91,20 @@ export interface PriceResult {
   reasoning: string;
 }
 
+// One dimension read off a tape measure in a photo. value is null when a tape is
+// present but the number/endpoint isn't legible — never a guess. The operator
+// confirms every value before it's used.
+export interface MeasureRead {
+  field: keyof Measurements;
+  value: number | null;
+  confidence: "low" | "medium" | "high";
+  note?: string;
+}
+
+export interface MeasureResult {
+  reads: MeasureRead[];
+}
+
 export interface Item {
   id: string;
   status: ItemStatus;
