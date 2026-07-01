@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getItem, saveItem, deleteItem } from "@/lib/store";
@@ -10,6 +10,7 @@ import { MeasurementDiagram } from "@/components/MeasurementDiagram";
 import { ComposePanel } from "@/components/ComposePanel";
 
 type Tab = "capture" | "compose";
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 export default function ItemPage() {
   const params = useParams<{ id: string }>();
@@ -28,9 +29,24 @@ export default function ItemPage() {
     getItem(id).then((i) => setItem(i ?? null));
   }, [id]);
 
+  // Autosave every edit to IndexedDB and surface the result, so there's a
+  // visible signal the work is persisted. A ref counter tracks in-flight
+  // saves so rapid typing doesn't flicker back to "Saved" mid-stream.
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const pending = useRef(0);
   const update = useCallback((next: Item) => {
     setItem(next);
-    saveItem(next);
+    pending.current += 1;
+    setSaveState("saving");
+    saveItem(next)
+      .then(() => {
+        pending.current -= 1;
+        if (pending.current === 0) setSaveState("saved");
+      })
+      .catch(() => {
+        pending.current -= 1;
+        setSaveState("error");
+      });
   }, []);
 
   if (item === undefined) return <p className="p-6 text-sm text-ink-soft">Loading…</p>;
@@ -52,7 +68,10 @@ export default function ItemPage() {
         >
           ← Pipeline
         </Link>
-        <StatusPicker item={item} onChange={update} />
+        <div className="flex items-center gap-3">
+          <SaveIndicator state={saveState} />
+          <StatusPicker item={item} onChange={update} />
+        </div>
       </div>
 
       <input
@@ -131,6 +150,19 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
       </h2>
       {children}
     </section>
+  );
+}
+
+function SaveIndicator({ state }: { state: SaveState }) {
+  if (state === "idle") return null;
+  const map = {
+    saving: { text: "Saving…", cls: "text-ink-soft" },
+    saved: { text: "Saved ✓", cls: "text-teal" },
+    error: { text: "Not saved — reload", cls: "text-brick" },
+  } as const;
+  const { text, cls } = map[state];
+  return (
+    <span className={`text-xs font-semibold uppercase tracking-wide ${cls}`}>{text}</span>
   );
 }
 

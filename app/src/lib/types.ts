@@ -4,8 +4,8 @@ export type ItemStatus = "to_shoot" | "captured" | "drafted" | "listed" | "sold"
 
 export const STATUS_LABELS: Record<ItemStatus, string> = {
   to_shoot: "To shoot",
-  captured: "Captured",
-  drafted: "Drafted",
+  captured: "Photographed",
+  drafted: "Drafts",
   listed: "Listed",
   sold: "Sold",
 };

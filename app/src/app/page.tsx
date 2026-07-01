@@ -188,7 +188,9 @@ function ItemCard({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
           <p className="mt-0.5 text-xs font-semibold text-brick">{note}</p>
         ) : (
           item.status === "captured" && (
-            <p className="mt-0.5 text-xs font-bold text-pumpkin">Generate →</p>
+            <p className="mt-0.5 text-xs font-bold text-pumpkin">
+              {item.listing ? "Review →" : "Generate →"}
+            </p>
           )
         )}
       </div>
