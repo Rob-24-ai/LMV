@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listItems, saveItem, makeId } from "@/lib/store";
-import { newItem, STATUS_LABELS, STATUS_ORDER, type Item, type ItemStatus } from "@/lib/types";
+import { listItems, saveItem, getItem, makeId } from "@/lib/store";
+import { capturedIfShooting, newItem, STATUS_LABELS, STATUS_ORDER, type Item, type ItemStatus } from "@/lib/types";
+import { imageFilesFrom, filesToPhotos } from "@/lib/photos";
 import { Thumb } from "@/components/Thumb";
 
 // Each pipeline stage gets a color from the era's palette.
@@ -19,7 +20,20 @@ export default function Dashboard() {
   const [name, setName] = useState("");
 
   async function refresh() {
-    setItems(await listItems());
+    const loaded = await listItems();
+    // Enforce the invariant: an item with photos has been shot, so it's never
+    // left in "to shoot". Self-heals items captured before this rule existed.
+    const fixed = await Promise.all(
+      loaded.map(async (it) => {
+        if (it.status === "to_shoot" && it.photos.length > 0) {
+          const next = { ...it, status: "captured" as ItemStatus };
+          await saveItem(next);
+          return next;
+        }
+        return it;
+      }),
+    );
+    setItems(fixed);
   }
   useEffect(() => {
     refresh();
@@ -71,7 +85,7 @@ export default function Dashboard() {
         <p className="text-sm text-ink-soft">Loading…</p>
       ) : items.length === 0 ? (
         <p className="rounded-2xl border-2 border-dashed border-ink/20 bg-paper/60 p-8 text-center text-sm text-ink-soft">
-          Nothing on the rack yet. Add your first piece above. ✿
+          Nothing on the rack yet. ✿
         </p>
       ) : (
         <div className="space-y-8">
@@ -90,28 +104,7 @@ export default function Dashboard() {
                 </h2>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                   {group.map((item) => (
-                    <Link
-                      key={item.id}
-                      href={`/item/${item.id}`}
-                      className="group overflow-hidden rounded-2xl border-2 border-ink/80 bg-paper shadow-[3px_3px_0_rgba(59,42,24,0.2)] transition-all hover:-translate-y-0.5 hover:shadow-[4px_5px_0_rgba(219,93,28,0.4)]"
-                    >
-                      <div className="aspect-square w-full bg-cream">
-                        {item.photos[0] ? (
-                          <Thumb blobKey={item.photos[0].blobKey} className="h-full w-full" />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-4xl text-ink/20">
-                            ✿
-                          </div>
-                        )}
-                      </div>
-                      <div className="border-t-2 border-ink/80 p-2.5">
-                        <p className="truncate text-sm font-semibold">{item.name}</p>
-                        <p className="text-xs text-ink-soft">
-                          {item.photos.length} photo{item.photos.length === 1 ? "" : "s"}
-                          {item.finalPrice ? ` · $${item.finalPrice}` : ""}
-                        </p>
-                      </div>
-                    </Link>
+                    <ItemCard key={item.id} item={item} onUpdated={refresh} />
                   ))}
                 </div>
               </section>
@@ -120,5 +113,90 @@ export default function Dashboard() {
         </div>
       )}
     </main>
+  );
+}
+
+// A pipeline card doubles as a drop target: drag a shoot straight onto it and
+// the photos attach to that item — no need to open it first.
+function ItemCard({ item, onUpdated }: { item: Item; onUpdated: () => void }) {
+  const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(0);
+  const [note, setNote] = useState<string | null>(null);
+
+  async function drop(files: FileList | null) {
+    setNote(null);
+    const list = imageFilesFrom(files);
+    if (list.length === 0) return;
+    setBusy(list.length);
+    const { added, failed, reason } = await filesToPhotos(list, "extra", setBusy);
+    setBusy(0);
+    if (added.length > 0) {
+      // Re-read the latest item so an overlapping drop can't clobber photos
+      // saved between when this drop started and now.
+      const fresh = (await getItem(item.id)) ?? item;
+      await saveItem({
+        ...fresh,
+        photos: [...fresh.photos, ...added],
+        status: capturedIfShooting(fresh.status),
+      });
+      onUpdated();
+    }
+    setNote(failed > 0 ? `Couldn't read ${failed}${reason ? ` — ${reason}` : ""}` : null);
+  }
+
+  // A captured item's next step is generating the listing — deep-link straight
+  // to the Compose view so the Generate button is right there on arrival.
+  const href =
+    item.status === "captured" ? `/item/${item.id}?tab=compose` : `/item/${item.id}`;
+
+  return (
+    <Link
+      href={href}
+      draggable={false}
+      onDragEnter={(e) => e.preventDefault()}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!dragging) setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void drop(e.dataTransfer.files);
+      }}
+      className={`group relative overflow-hidden rounded-2xl border-2 bg-paper shadow-[3px_3px_0_rgba(59,42,24,0.2)] transition-all hover:-translate-y-0.5 hover:shadow-[4px_5px_0_rgba(219,93,28,0.4)] ${
+        dragging ? "border-pumpkin ring-2 ring-pumpkin" : "border-ink/80"
+      }`}
+    >
+      <div className="aspect-square w-full bg-cream">
+        {item.photos[0] ? (
+          <Thumb blobKey={item.photos[0].blobKey} className="h-full w-full" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-4xl text-ink/20">✿</div>
+        )}
+      </div>
+      <div className="border-t-2 border-ink/80 p-2.5">
+        <p className="truncate text-sm font-semibold">{item.name}</p>
+        <p className="text-xs text-ink-soft">
+          {item.photos.length} photo{item.photos.length === 1 ? "" : "s"}
+          {item.finalPrice ? ` · $${item.finalPrice}` : ""}
+        </p>
+        {note ? (
+          <p className="mt-0.5 text-xs font-semibold text-brick">{note}</p>
+        ) : (
+          item.status === "captured" && (
+            <p className="mt-0.5 text-xs font-bold text-pumpkin">Generate →</p>
+          )
+        )}
+      </div>
+      {(dragging || busy > 0) && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-mustard/25 text-sm font-bold text-pumpkin backdrop-blur-[1px]">
+          {busy > 0 ? `Adding ${busy}…` : "Drop photos"}
+        </div>
+      )}
+    </Link>
   );
 }

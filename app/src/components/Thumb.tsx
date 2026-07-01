@@ -20,6 +20,8 @@ export function Thumb({ blobKey, className }: { blobKey: string; className?: str
   }, [blobKey]);
 
   if (!url) return <div className={`bg-cream ${className ?? ""}`} />;
+  // draggable={false}: the img sits inside a drop-target card; a draggable
+  // image would start its own drag and eat the file-drop hit test.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="" className={`object-cover ${className ?? ""}`} />;
+  return <img src={url} alt="" draggable={false} className={`object-cover ${className ?? ""}`} />;
 }

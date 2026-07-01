@@ -6,7 +6,6 @@ export interface PhotoSlot {
   label: string;
   hint: string;
   multi?: boolean;
-  hiRes?: boolean; // tag shots sent at full resolution to the dating call
   required?: boolean;
 }
 
@@ -15,8 +14,8 @@ export const PHOTO_SLOTS: PhotoSlot[] = [
   { role: "front", label: "Front", hint: "Whole garment, flat or on form", required: true },
   { role: "back", label: "Back", hint: "Whole garment from behind", required: true },
   { role: "side", label: "Side", hint: "Drape and silhouette" },
-  { role: "brand_tag", label: "Brand tag", hint: "Fill the frame — read the label", hiRes: true, required: true },
-  { role: "care_tag", label: "Care / union tag", hint: "RN number, care symbols, union label", hiRes: true },
+  { role: "brand_tag", label: "Brand tag", hint: "Fill the frame — read the label", required: true },
+  { role: "care_tag", label: "Care / union tag", hint: "RN number, care symbols, union label" },
   { role: "fabric", label: "Fabric close-up", hint: "Weave and texture" },
   { role: "flaw", label: "Flaws", hint: "One shot per flaw, close", multi: true },
   {
@@ -24,7 +23,6 @@ export const PHOTO_SLOTS: PhotoSlot[] = [
     label: "Measurement shots",
     hint: "Lay a tape flat along each dimension — pit-to-pit, waist, length, sleeve. One shot per dimension, fill the frame so the numbers read. Claude can read these into the measurements.",
     multi: true,
-    hiRes: true,
   },
   { role: "extra", label: "Extra", hint: "Anything else worth showing", multi: true },
 ];

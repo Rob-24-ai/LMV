@@ -34,6 +34,80 @@ body {
   background-attachment: fixed;
 }
 
+/* Rendered reference guides (react-markdown output). Tailwind v4 strips default
+   element styling, so restore readable prose for the guide pages. */
+.guide-prose {
+  color: var(--color-ink);
+  line-height: 1.65;
+  font-size: 0.95rem;
+}
+.guide-prose h1 {
+  font-family: var(--font-fun), system-ui, sans-serif;
+  color: var(--color-pumpkin);
+  font-size: 2rem;
+  line-height: 1.1;
+  margin: 0 0 0.75rem;
+}
+.guide-prose h2 {
+  font-weight: 700;
+  font-size: 1.3rem;
+  margin: 1.75rem 0 0.5rem;
+  border-bottom: 2px solid rgba(59, 42, 24, 0.12);
+  padding-bottom: 0.25rem;
+}
+.guide-prose h3 {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-ink-soft);
+  margin: 1.25rem 0 0.4rem;
+}
+.guide-prose p { margin: 0.6rem 0; }
+.guide-prose ul,
+.guide-prose ol { margin: 0.6rem 0; padding-left: 1.35rem; }
+.guide-prose ul { list-style: disc; }
+.guide-prose ol { list-style: decimal; }
+.guide-prose li { margin: 0.25rem 0; }
+.guide-prose a { color: var(--color-teal); font-weight: 600; text-decoration: underline; }
+.guide-prose strong { font-weight: 700; }
+.guide-prose code {
+  background: var(--color-cream);
+  border: 1px solid rgba(59, 42, 24, 0.15);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.guide-prose pre {
+  background: var(--color-paper);
+  border: 2px solid rgba(59, 42, 24, 0.15);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  margin: 0.9rem 0;
+}
+.guide-prose pre code { background: none; border: none; padding: 0; }
+.guide-prose blockquote {
+  border-left: 4px solid var(--color-mustard);
+  padding-left: 0.9rem;
+  color: var(--color-ink-soft);
+  margin: 0.9rem 0;
+}
+.guide-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+  display: block;
+  overflow-x: auto;
+}
+.guide-prose th,
+.guide-prose td {
+  border: 1px solid rgba(59, 42, 24, 0.2);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+.guide-prose th { background: var(--color-cream); font-weight: 700; }
+.guide-prose hr { border: none; border-top: 2px solid rgba(59, 42, 24, 0.12); margin: 1.5rem 0; }
+
 /* Groovy striped divider — a thin bar of the era's colors */
 .groovy-rule {
   height: 6px;

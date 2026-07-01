@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Poppins, Bagel_Fat_One } from "next/font/google";
 import "./globals.css";
+import { NavMenu } from "@/components/NavMenu";
+import { DropGuard } from "@/components/DropGuard";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -29,7 +31,11 @@ export default function RootLayout({
       lang="en"
       className={`${poppins.variable} ${bagel.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <DropGuard />
+        <NavMenu />
+        {children}
+      </body>
     </html>
   );
 }

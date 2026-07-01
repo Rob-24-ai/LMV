@@ -18,6 +18,12 @@ export const STATUS_ORDER: ItemStatus[] = [
   "sold",
 ];
 
+// Adding photos means the garment has been shot — advance it out of "to shoot"
+// so the pipeline reflects reality. Later stages (drafted/listed/sold) are not
+// regressed; they depend on generating a listing and what happens on eBay.
+export const capturedIfShooting = (s: ItemStatus): ItemStatus =>
+  s === "to_shoot" ? "captured" : s;
+
 // Photo roles the capture checklist walks through. `multi` roles (flaw, extra)
 // can have many photos; the rest are single-shot.
 export type PhotoRole =
@@ -37,8 +43,6 @@ export interface PhotoMeta {
   createdAt: number;
   // Bytes live in IndexedDB under this key; UI resolves to an object URL.
   blobKey: string;
-  // True for tag shots we send at high-res to the dating call.
-  hiRes?: boolean;
 }
 
 export interface Measurements {

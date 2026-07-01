@@ -15,7 +15,14 @@ export default function ItemPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [item, setItem] = useState<Item | null | undefined>(undefined);
-  const [tab, setTab] = useState<Tab>("capture");
+  // Cards for captured items deep-link with ?tab=compose so you land on the
+  // Generate view. Read it once on mount (client-only, no Suspense needed).
+  const [tab, setTab] = useState<Tab>(() =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("tab") === "compose"
+      ? "compose"
+      : "capture",
+  );
 
   useEffect(() => {
     getItem(id).then((i) => setItem(i ?? null));
